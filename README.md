@@ -18,13 +18,16 @@ The fastest path from a fresh checkout to a working skill on a local
 Hermes install.
 
 ```bash
-# 0. Pick the Entra ID tenant your mailbox lives in
+# 0. Get the skill
+git clone https://github.com/kargausa/o365-skill.git
+cd o365-skill
+
+# 0b. Pick the Entra ID tenant your mailbox lives in
 TENANT_ID="<your-tenant-guid>"          # az account list to find it
 APP_NAME="${USER}-m365-cli"             # any neutral name; avoid product names
 
 # 1. Drop the skill into Hermes (symlink keeps repo edits live)
-ln -s "$PWD/skills/o365" \
-      ~/.hermes/skills/productivity/o365
+ln -s "$PWD" ~/.hermes/skills/productivity/o365
 
 # 2. Install Python deps in BOTH places Hermes might use:
 #    a) the Hermes venv (gateway itself)
