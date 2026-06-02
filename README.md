@@ -19,6 +19,14 @@ any agent runtime or shell pipeline.
 npx skills add kargausa/o365-skill
 ```
 
+## Demo
+
+One prompt, two skills: the agent reads an access request out of your inbox, edits a
+Terraform repo, opens a pull request, and replies to the sender with the link — combining
+this **o365** skill with a **GitHub** skill.
+
+![o365 + GitHub demo](.demo/demo.gif)
+
 ## Capabilities
 
 Natural-language tasks an agent can carry out once the skill is installed:

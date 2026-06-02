@@ -3,3 +3,5 @@ __pycache__/
 *.bin
 o365_app_config.json
 .env
+.demo/frames/
+.demo/concat.txt
