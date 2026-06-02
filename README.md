@@ -1,14 +1,97 @@
-# Microsoft 365 Skill — Setup Guide
+# Microsoft 365 Skill
 
-A Hermes skill for Outlook, Calendar, Teams, and OneDrive via the Microsoft
-Graph API. Authentication uses the OAuth 2.0 **device code flow** through a
-public Azure AD application — **no client secret**, no redirect URI, no web
-server.
+> Outlook, Calendar, Teams, and OneDrive for AI agents — over the Microsoft Graph API with secretless device-code OAuth.
 
-This README is the human-facing setup guide. For the LLM-facing usage
-contract (commands, output formats, rules), see [`SKILL.md`](SKILL.md).
-For a fully scripted `az`-CLI walkthrough, see
-[`AZURE-CLI-SETUP.md`](AZURE-CLI-SETUP.md).
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Python](https://img.shields.io/badge/python-3.9%2B-green)
+![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows-lightgrey)
+![Auth](https://img.shields.io/badge/auth-OAuth2%20device--code-orange)
+
+A portable [agent skill](https://skills.sh) that gives an LLM agent read/write access to a
+Microsoft 365 mailbox, calendar, Teams, and OneDrive. Authentication uses the OAuth 2.0
+**device-code flow** through a public Entra ID (Azure AD) application — **no client secret,
+no redirect URI, no web server** — so it runs headless on a server, container, or CI runner.
+
+It ships as a thin JSON-in/JSON-out CLI over Microsoft Graph, so it composes cleanly with
+any agent runtime or shell pipeline.
+
+```bash
+npx skills add kargausa/o365-skill
+```
+
+## Capabilities
+
+Natural-language tasks an agent can carry out once the skill is installed:
+
+**📧 Mail**
+- "Summarize unread mail from the last 7 days and pull out action items and deadlines."
+- "Which threads am I still on the hook to reply to?"
+- "Archive every inbox message that doesn't mention me, then post a digest of what moved."
+- "Find the thread about the migration ticket and draft a reply for review."
+
+**📅 Calendar**
+- "What's on my calendar tomorrow?"
+- "Book a 30-minute sync next Tuesday afternoon and invite the attendees from that thread."
+
+**💬 Teams**
+- "Summarize every Teams message sent to me today."
+- "Read the last message in a channel and draft a reply."
+- "Watch my Teams DMs during work hours and flag anything that needs a response."
+
+**📁 OneDrive**
+- "Find the latest architecture doc, download it, and share a view-only link."
+- "Upload this generated report and hand me the link."
+
+Because each service is a plain CLI verb, the skill chains with other tools — read a request
+out of an inbox, act on it elsewhere, and reply with the result.
+
+## How it works
+
+```
+agent ──▶ o365_api.py ──▶ Microsoft Graph REST API
+              │
+       MSAL token cache  (~/.hermes/o365_token_cache.bin, 0600)
+              │
+       device-code OAuth (public client · no secret · auto-refresh)
+```
+
+- **`scripts/setup.py`** runs the one-time device-code authorization and persists an MSAL
+  token cache.
+- **`scripts/o365_api.py`** is a stateless CLI over Graph. Every call acquires a token
+  silently from the cache and refreshes it via the `offline_access` refresh token, so the
+  agent never touches credentials directly.
+- No client secret is stored anywhere — the public-client device-code flow is purpose-built
+  for headless, secretless use.
+
+## Requirements
+
+- Python 3.9+
+- An Entra ID app registration with public-client flows enabled (one-time, ~5 min)
+- `msal` and `requests` (installed by the setup script)
+
+## CLI reference
+
+```
+outlook    search · get · send · reply · folders · move
+calendar   list · create · delete
+teams      list · channels · messages · send · chats · chat-messages · chat-send
+onedrive   search · get · upload · download · create-folder · share
+```
+
+```bash
+O365=~/.hermes/skills/productivity/o365/scripts/o365_api.py
+
+python3 $O365 outlook search "from:someone@example.com is:unread" --max 10
+python3 $O365 outlook send --to a@example.com --subject "Hi" --body "<b>Hello</b>" --html --attachment report.pdf
+python3 $O365 calendar list --start 2026-06-08 --end 2026-06-12
+python3 $O365 teams chat-messages CHAT_ID --max 20
+python3 $O365 onedrive share ITEM_ID --type view
+```
+
+Every command emits JSON to stdout. See [`SKILL.md`](SKILL.md) for the full agent-facing
+contract, and [`references/outlook-search-syntax.md`](references/outlook-search-syntax.md)
+for Graph `$search` / `$filter` operators. For a fully scripted `az`-CLI app registration,
+see [`AZURE-CLI-SETUP.md`](AZURE-CLI-SETUP.md).
 
 ---
 
@@ -369,3 +452,37 @@ revoke.
 - If you run multiple Hermes instances against the same `$HERMES_HOME`,
   they share one token cache. Cache writes are atomic, but there is no
   cross-process lock — concurrent `--auth` runs could race. Don't.
+
+---
+
+## Project layout
+
+```
+.
+├── SKILL.md                       # agent-facing usage contract (commands, output formats)
+├── README.md                      # this file
+├── AZURE-CLI-SETUP.md             # scripted Entra app registration via the az CLI
+├── references/
+│   └── outlook-search-syntax.md   # Graph $search / $filter operators
+└── scripts/
+    ├── setup.py                   # one-time device-code authorization
+    ├── o365_api.py                # Graph API CLI (outlook / calendar / teams / onedrive)
+    └── _hermes_home.py            # resolves the agent home directory
+```
+
+## Contributing
+
+Issues and PRs welcome. The skill is a self-contained CLI whose only runtime dependencies
+are `msal` and `requests`, so it's straightforward to test in isolation:
+
+```bash
+python3 scripts/setup.py --check-live        # verify auth end-to-end
+python3 scripts/o365_api.py outlook folders   # smoke-test a Graph call
+```
+
+When adding a new Graph operation, keep the JSON-in/JSON-out contract and update both the
+`SKILL.md` command table and the CLI reference above.
+
+## License
+
+[MIT](LICENSE)
